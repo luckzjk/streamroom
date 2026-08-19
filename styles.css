@@ -286,6 +286,10 @@ h1 {
   text-align: center;
 }
 
+.empty-state[hidden] {
+  display: none;
+}
+
 .empty-icon {
   display: grid;
   place-items: center;
