@@ -2,6 +2,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { randomUUID } = require("node:crypto");
 
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
@@ -31,9 +32,33 @@ const mimeTypes = {
   ".ico": "image/x-icon",
 };
 
-function getRoom(roomId) {
+function createRoomId() {
+  return `sala-${randomUUID().slice(0, 8)}`;
+}
+
+function normalizeRoomName(name, roomId) {
+  const value = String(name || "").trim().slice(0, 42);
+  return value || `Sala ${roomId.replace("sala-", "")}`;
+}
+
+function normalizeRoomLimit(limit) {
+  const value = Number(limit);
+
+  if (!Number.isFinite(value)) {
+    return 8;
+  }
+
+  return Math.min(Math.max(Math.round(value), 2), 50);
+}
+
+function getRoom(roomId, options = {}) {
   if (!rooms.has(roomId)) {
-    rooms.set(roomId, new Map());
+    rooms.set(roomId, {
+      id: roomId,
+      name: normalizeRoomName(options.name, roomId),
+      limit: normalizeRoomLimit(options.limit),
+      clients: new Map(),
+    });
   }
 
   return rooms.get(roomId);
@@ -47,18 +72,25 @@ function broadcast(roomId, message, exceptPeerId) {
   const room = rooms.get(roomId);
   if (!room) return;
 
-  room.forEach((client, peerId) => {
+  room.clients.forEach((client, peerId) => {
     if (peerId !== exceptPeerId) {
-      sendEvent(client, message);
+      sendEvent(client.response, message);
     }
   });
 }
 
 function sendTo(roomId, peerId, message) {
-  const client = rooms.get(roomId)?.get(peerId);
+  const client = rooms.get(roomId)?.clients.get(peerId);
   if (client) {
-    sendEvent(client, message);
+    sendEvent(client.response, message);
   }
+}
+
+function getPeerList(room) {
+  return [...room.clients.entries()].map(([id, client]) => ({
+    id,
+    profile: client.profile,
+  }));
 }
 
 function readJson(request) {
@@ -122,9 +154,51 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/rooms") {
+    try {
+      const data = await readJson(request);
+      const roomId = createRoomId();
+      const room = getRoom(roomId, {
+        name: data.name,
+        limit: data.limit,
+      });
+
+      response.writeHead(201, { "Content-Type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({ id: room.id, name: room.name, limit: room.limit }));
+    } catch (error) {
+      response.writeHead(400);
+      response.end(error.message);
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/room") {
+    const roomId = url.searchParams.get("room");
+    const room = roomId ? getRoom(roomId) : null;
+
+    if (!room) {
+      response.writeHead(404);
+      response.end("Sala nao encontrada");
+      return;
+    }
+
+    response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify({
+      id: room.id,
+      name: room.name,
+      limit: room.limit,
+      count: room.clients.size,
+    }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/events") {
     const roomId = url.searchParams.get("room");
     const peerId = url.searchParams.get("peer");
+    const profile = {
+      name: String(url.searchParams.get("name") || "Convidado").slice(0, 32),
+      photo: "",
+    };
 
     if (!roomId || !peerId) {
       response.writeHead(400);
@@ -141,19 +215,32 @@ const server = http.createServer(async (request, response) => {
     response.write(": conectado\n\n");
 
     const room = getRoom(roomId);
-    room.set(peerId, response);
+
+    if (!room.clients.has(peerId) && room.clients.size >= room.limit) {
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      });
+      sendEvent(response, { type: "room-full", room: { id: room.id, name: room.name, limit: room.limit } });
+      response.end();
+      return;
+    }
+
+    room.clients.set(peerId, { response, profile });
 
     sendEvent(response, {
       type: "connected",
-      peers: [...room.keys()].filter((id) => id !== peerId),
+      room: { id: room.id, name: room.name, limit: room.limit },
+      peers: getPeerList(room).filter((peer) => peer.id !== peerId),
     });
-    broadcast(roomId, { type: "peer-joined", from: peerId }, peerId);
+    broadcast(roomId, { type: "peer-joined", from: peerId, profile }, peerId);
 
     request.on("close", () => {
-      room.delete(peerId);
+      room.clients.delete(peerId);
       broadcast(roomId, { type: "peer-left", from: peerId }, peerId);
 
-      if (room.size === 0) {
+      if (room.clients.size === 0) {
         rooms.delete(roomId);
       }
     });
@@ -163,7 +250,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/signal") {
     try {
       const message = await readJson(request);
-      const { room, to, from, type } = message;
+      const { room, to, from, type, profile } = message;
 
       if (!room || !from || !type) {
         response.writeHead(400);
@@ -175,6 +262,16 @@ const server = http.createServer(async (request, response) => {
         sendTo(room, to, message);
       } else {
         broadcast(room, message, from);
+      }
+
+      if (type === "profile-updated" && profile) {
+        const client = rooms.get(room)?.clients.get(from);
+        if (client) {
+          client.profile = {
+            name: String(profile.name || "Convidado").slice(0, 32),
+            photo: String(profile.photo || "").slice(0, 180000),
+          };
+        }
       }
 
       response.writeHead(204);

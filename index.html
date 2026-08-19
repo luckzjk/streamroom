@@ -55,10 +55,6 @@
             <span aria-hidden="true">▣</span>
             <small>Tela</small>
           </button>
-          <button class="control-button" id="toggleChat" type="button" aria-pressed="true" title="Chat">
-            <span aria-hidden="true">💬</span>
-            <small>Chat</small>
-          </button>
           <button class="control-button danger" id="leaveButton" type="button" title="Sair">
             <span aria-hidden="true">✕</span>
             <small>Sair</small>
@@ -69,14 +65,51 @@
       <aside class="sidebar" id="sidebar" aria-label="Painel da sala">
         <section class="panel compact">
           <div class="panel-heading">
-            <h2>Convite</h2>
+            <h2>Nova sala</h2>
+            <span>Convite</span>
+          </div>
+          <form class="room-form" id="createRoomForm">
+            <label>
+              <span>Nome da sala</span>
+              <input id="newRoomName" type="text" maxlength="42" placeholder="Filme de sexta" />
+            </label>
+            <label>
+              <span>Limite de pessoas</span>
+              <input id="newRoomLimit" type="number" min="2" max="50" value="8" />
+            </label>
+            <button class="secondary-button" type="submit">Criar sala</button>
+          </form>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Sala atual</h2>
             <span id="roomCode">Sala</span>
           </div>
           <div class="invite-row">
             <input id="roomLink" type="text" readonly aria-label="Link de convite da sala" />
             <button id="copyRoomLinkButton" type="button" title="Copiar convite" aria-label="Copiar convite">⛓</button>
           </div>
-          <button class="secondary-button" id="createRoomButton" type="button">Criar nova sala</button>
+          <p class="room-meta" id="roomMeta">Aguardando dados da sala</p>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Meu perfil</h2>
+            <span>Na sala</span>
+          </div>
+          <form class="profile-form" id="profileForm">
+            <label class="profile-photo">
+              <input id="profilePhoto" type="file" accept="image/*" />
+              <span class="avatar host" id="profilePreview">VO</span>
+              <strong>Alterar foto</strong>
+            </label>
+            <label>
+              <span>Nome que aparece</span>
+              <input id="profileName" type="text" maxlength="32" placeholder="Seu nome" />
+            </label>
+            <button class="secondary-button" type="submit">Salvar perfil</button>
+          </form>
         </section>
 
         <section class="panel compact">
@@ -116,26 +149,6 @@
           </label>
         </section>
 
-        <section class="panel chat-panel" id="chatPanel">
-          <div class="panel-heading">
-            <h2>Chat</h2>
-            <span id="messageCount">2</span>
-          </div>
-          <div class="messages" id="messages" aria-live="polite">
-            <article>
-              <strong>Amanda</strong>
-              <p>A imagem ficou lisa aqui.</p>
-            </article>
-            <article>
-              <strong>Renan</strong>
-              <p>Quando trocar de janela avisa.</p>
-            </article>
-          </div>
-          <form class="message-form" id="messageForm">
-            <input id="messageInput" type="text" autocomplete="off" placeholder="Mensagem" aria-label="Mensagem" />
-            <button type="submit" title="Enviar" aria-label="Enviar mensagem">➜</button>
-          </form>
-        </section>
       </aside>
     </main>
 

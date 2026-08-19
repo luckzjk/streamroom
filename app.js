@@ -6,18 +6,19 @@ const startShareHero = document.querySelector("#startShareHero");
 const toggleShare = document.querySelector("#toggleShare");
 const toggleMic = document.querySelector("#toggleMic");
 const toggleCamera = document.querySelector("#toggleCamera");
-const toggleChat = document.querySelector("#toggleChat");
 const leaveButton = document.querySelector("#leaveButton");
 const copyLinkButton = document.querySelector("#copyLinkButton");
 const copyRoomLinkButton = document.querySelector("#copyRoomLinkButton");
-const createRoomButton = document.querySelector("#createRoomButton");
+const createRoomForm = document.querySelector("#createRoomForm");
+const newRoomName = document.querySelector("#newRoomName");
+const newRoomLimit = document.querySelector("#newRoomLimit");
+const profileForm = document.querySelector("#profileForm");
+const profileName = document.querySelector("#profileName");
+const profilePhoto = document.querySelector("#profilePhoto");
+const profilePreview = document.querySelector("#profilePreview");
 const roomCode = document.querySelector("#roomCode");
 const roomLink = document.querySelector("#roomLink");
-const chatPanel = document.querySelector("#chatPanel");
-const messageForm = document.querySelector("#messageForm");
-const messageInput = document.querySelector("#messageInput");
-const messages = document.querySelector("#messages");
-const messageCount = document.querySelector("#messageCount");
+const roomMeta = document.querySelector("#roomMeta");
 const participantCount = document.querySelector("#participantCount");
 const participantsList = document.querySelector("#participantsList");
 const qualityLabel = document.querySelector("#qualityLabel");
@@ -25,10 +26,17 @@ const toast = document.querySelector("#toast");
 
 const roomId = getRoomId();
 const peerId = getPeerId();
+const localProfile = getLocalProfile();
 const peers = new Map();
-const participants = new Set([peerId]);
+const participants = new Map([[peerId, localProfile]]);
 const pendingCandidates = new Map();
 const remoteStream = new MediaStream();
+const roomState = {
+  id: roomId,
+  name: `Sala ${roomId.replace("sala-", "")}`,
+  limit: 8,
+  count: 1,
+};
 
 let screenStream = null;
 let eventSource = null;
@@ -70,6 +78,20 @@ function getPeerId() {
   return generatedPeerId;
 }
 
+function getLocalProfile() {
+  const savedProfile = JSON.parse(localStorage.getItem("streamroom-profile") || "{}");
+  const name = String(savedProfile.name || "").trim() || "Convidado";
+
+  return {
+    name: name.slice(0, 32),
+    photo: String(savedProfile.photo || ""),
+  };
+}
+
+function saveLocalProfile(profile) {
+  localStorage.setItem("streamroom-profile", JSON.stringify(profile));
+}
+
 function showToast(message) {
   window.clearTimeout(toastTimer);
   toast.textContent = message;
@@ -78,9 +100,16 @@ function showToast(message) {
 }
 
 function setRoomUi() {
-  document.querySelector(".eyebrow").textContent = `Sala ${roomId}`;
+  document.querySelector(".eyebrow").textContent = roomState.name;
   roomCode.textContent = roomId;
   roomLink.value = getInviteLink();
+  roomMeta.textContent = `${roomState.count}/${roomState.limit} pessoas`;
+  newRoomName.value = roomState.name;
+}
+
+function setProfileUi() {
+  profileName.value = localProfile.name;
+  renderAvatar(profilePreview, localProfile, true);
 }
 
 function setStatus(text, live = false) {
@@ -109,26 +138,51 @@ function setVideoState(isLive, mode = "ready") {
 
 function updateParticipants() {
   participantCount.textContent = String(participants.size);
+  roomState.count = participants.size;
+  roomMeta.textContent = `${roomState.count}/${roomState.limit} pessoas`;
   participantsList.innerHTML = "";
 
-  [...participants].forEach((id) => {
+  [...participants.entries()].forEach(([id, profile]) => {
     const item = document.createElement("li");
     const isLocal = id === peerId;
-    const label = getShortId(id);
 
     item.innerHTML = `
-      <span class="avatar ${isLocal ? "host" : ""}"></span>
+      <span class="avatar ${isLocal ? "host" : ""}" aria-hidden="true"></span>
       <div>
         <strong></strong>
         <small></small>
       </div>
       <span class="mini-indicator active" title="Online"></span>
     `;
-    item.querySelector(".avatar").textContent = isLocal ? "VO" : label.slice(0, 2);
-    item.querySelector("strong").textContent = label;
+    renderAvatar(item.querySelector(".avatar"), profile, isLocal);
+    item.querySelector("strong").textContent = profile.name || getShortId(id);
     item.querySelector("small").textContent = isLocal ? "Este dispositivo" : "Conectado";
     participantsList.append(item);
   });
+}
+
+function renderAvatar(element, profile, isLocal = false) {
+  element.textContent = "";
+  element.style.backgroundImage = "";
+  element.classList.toggle("has-photo", Boolean(profile.photo));
+  element.classList.toggle("host", isLocal);
+
+  if (profile.photo) {
+    element.style.backgroundImage = `url("${profile.photo}")`;
+    return;
+  }
+
+  element.textContent = getInitials(profile.name);
+}
+
+function getInitials(name) {
+  return String(name || "Convidado")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function getShortId(id) {
@@ -161,12 +215,33 @@ async function loadRtcConfig() {
   }
 }
 
+async function loadRoom() {
+  try {
+    const response = await fetch(`/room?room=${encodeURIComponent(roomId)}`);
+    const room = await response.json();
+    Object.assign(roomState, room);
+  } catch {
+    Object.assign(roomState, {
+      id: roomId,
+      name: `Sala ${roomId.replace("sala-", "")}`,
+      limit: 8,
+      count: participants.size,
+    });
+  }
+}
+
 function connectSignaling() {
-  eventSource = new EventSource(`/events?room=${encodeURIComponent(roomId)}&peer=${encodeURIComponent(peerId)}`);
+  const params = new URLSearchParams({
+    room: roomId,
+    peer: peerId,
+    name: localProfile.name,
+  });
+  eventSource = new EventSource(`/events?${params}`);
 
   eventSource.onopen = () => {
     setVideoState(Boolean(screenStream || remoteStream.getTracks().length));
     sendSignal({ type: "viewer-ready", to: "all" });
+    sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
   };
 
   eventSource.onerror = () => {
@@ -185,15 +260,24 @@ function connectSignaling() {
 }
 
 async function handleSignal(message) {
-  const { type, from, payload } = message;
+  const { type, from, payload, profile } = message;
 
   if (from) {
-    participants.add(from);
+    participants.set(from, profile || participants.get(from) || { name: getShortId(from), photo: "" });
     updateParticipants();
   }
 
+  if (type === "room-full") {
+    showToast(`A sala ${message.room.name} ja atingiu o limite de ${message.room.limit} pessoas.`);
+    eventSource?.close();
+    setStatus("Sala cheia");
+    return;
+  }
+
   if (type === "connected") {
-    message.peers?.forEach((id) => participants.add(id));
+    Object.assign(roomState, message.room || {});
+    message.peers?.forEach((peer) => participants.set(peer.id, peer.profile || { name: getShortId(peer.id), photo: "" }));
+    setRoomUi();
     updateParticipants();
     return;
   }
@@ -208,6 +292,12 @@ async function handleSignal(message) {
   if (type === "peer-left") {
     closePeer(from);
     participants.delete(from);
+    updateParticipants();
+    return;
+  }
+
+  if (type === "profile-updated") {
+    participants.set(from, profile || payload || participants.get(from));
     updateParticipants();
     return;
   }
@@ -248,9 +338,6 @@ async function handleSignal(message) {
     return;
   }
 
-  if (type === "chat") {
-    renderMessage(getShortId(from), payload.text);
-  }
 }
 
 function createPeerConnection(remotePeerId) {
@@ -389,7 +476,7 @@ async function startScreenShare() {
     track.addEventListener("ended", stopScreenShare, { once: true });
 
     await sendSignal({ type: "broadcaster-ready", to: "all" });
-    await Promise.all([...participants].filter((id) => id !== peerId).map((id) => createOffer(id)));
+    await Promise.all([...participants.keys()].filter((id) => id !== peerId).map((id) => createOffer(id)));
   } catch (error) {
     if (error.name === "NotAllowedError") {
       showToast("Permissao de captura cancelada.");
@@ -422,16 +509,6 @@ function togglePressed(button) {
   return nextState;
 }
 
-function renderMessage(author, text) {
-  const article = document.createElement("article");
-  article.innerHTML = `<strong></strong><p></p>`;
-  article.querySelector("strong").textContent = author;
-  article.querySelector("p").textContent = text;
-  messages.append(article);
-  messages.scrollTop = messages.scrollHeight;
-  messageCount.textContent = String(messages.children.length);
-}
-
 startShareHero.addEventListener("click", startScreenShare);
 
 toggleShare.addEventListener("click", () => {
@@ -450,11 +527,6 @@ toggleMic.addEventListener("click", () => {
 toggleCamera.addEventListener("click", () => {
   const enabled = togglePressed(toggleCamera);
   showToast(enabled ? "Camera ligada." : "Camera desligada.");
-});
-
-toggleChat.addEventListener("click", () => {
-  const visible = togglePressed(toggleChat);
-  chatPanel.style.display = visible ? "grid" : "none";
 });
 
 leaveButton.addEventListener("click", () => {
@@ -483,9 +555,55 @@ copyRoomLinkButton.addEventListener("click", async () => {
   }
 });
 
-createRoomButton.addEventListener("click", () => {
-  const nextRoom = `sala-${crypto.randomUUID().slice(0, 8)}`;
-  window.location.assign(`${window.location.origin}${window.location.pathname}#${nextRoom}`);
+createRoomForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const response = await fetch("/rooms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: newRoomName.value,
+      limit: newRoomLimit.value,
+    }),
+  });
+  const room = await response.json();
+  window.location.assign(`${window.location.origin}${window.location.pathname}#${room.id}`);
+});
+
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  localProfile.name = profileName.value.trim().slice(0, 32) || "Convidado";
+  saveLocalProfile(localProfile);
+  participants.set(peerId, localProfile);
+  setProfileUi();
+  updateParticipants();
+  await sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
+  showToast("Perfil atualizado.");
+});
+
+profilePhoto.addEventListener("change", () => {
+  const [file] = profilePhoto.files;
+
+  if (!file) {
+    return;
+  }
+
+  if (file.size > 180000) {
+    showToast("Use uma imagem menor que 180 KB.");
+    profilePhoto.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    localProfile.photo = reader.result;
+    saveLocalProfile(localProfile);
+    participants.set(peerId, localProfile);
+    setProfileUi();
+    updateParticipants();
+    sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
+  });
+  reader.readAsDataURL(file);
 });
 
 document.querySelectorAll("[data-quality]").forEach((button) => {
@@ -500,24 +618,16 @@ document.querySelectorAll("[data-quality]").forEach((button) => {
   });
 });
 
-messageForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const value = messageInput.value.trim();
-
-  if (!value) return;
-
-  renderMessage("Voce", value);
-  sendSignal({ type: "chat", to: "all", payload: { text: value } });
-  messageInput.value = "";
-});
-
 window.addEventListener("beforeunload", () => {
   eventSource?.close();
   peers.forEach((peer) => peer.close());
   screenStream?.getTracks().forEach((track) => track.stop());
 });
 
-setRoomUi();
+setProfileUi();
 updateParticipants();
 setVideoState(false);
-loadRtcConfig().then(connectSignaling);
+Promise.all([loadRoom(), loadRtcConfig()]).then(() => {
+  setRoomUi();
+  connectSignaling();
+});

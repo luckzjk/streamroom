@@ -247,7 +247,7 @@ video {
 
 .control-bar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(58px, 1fr));
+  grid-template-columns: repeat(4, minmax(58px, 1fr));
   gap: 10px;
   padding: 12px;
   border-radius: 8px;
@@ -286,7 +286,7 @@ video {
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto auto auto minmax(260px, 1fr);
+  grid-template-rows: auto auto auto auto;
   gap: 14px;
 }
 
@@ -333,11 +333,17 @@ video {
   border-radius: 8px;
   color: #101114;
   background: #e8d36f;
+  background-position: center;
+  background-size: cover;
   font-weight: 900;
 }
 
 .avatar.host {
   background: var(--accent-2);
+}
+
+.avatar.has-photo {
+  color: transparent;
 }
 
 .participants strong,
@@ -422,49 +428,26 @@ input[type="checkbox"] {
   font-weight: 900;
 }
 
-.chat-panel {
+.room-form,
+.profile-form {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  min-height: 0;
-}
-
-.messages {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  overflow: auto;
-  min-height: 0;
-  padding-right: 4px;
 }
 
-.messages article {
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.messages strong {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--accent-2);
-  font-size: 0.82rem;
-}
-
-.messages p {
-  color: var(--text);
-  line-height: 1.35;
-}
-
-.message-form {
+.room-form label,
+.profile-form label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
-.message-form input {
+.room-form input,
+.profile-form input[type="text"],
+.profile-form input[type="number"] {
   min-width: 0;
-  height: 44px;
+  height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
   outline: 0;
@@ -473,11 +456,38 @@ input[type="checkbox"] {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.message-form button {
+.room-meta {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.profile-photo {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  min-height: 58px;
+  cursor: pointer;
+}
+
+.profile-photo input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.profile-photo .avatar {
+  width: 56px;
+  height: 56px;
   border-radius: 8px;
-  color: #06130d;
-  background: var(--accent);
-  font-weight: 900;
+}
+
+.profile-photo strong {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toast {
@@ -515,11 +525,7 @@ input[type="checkbox"] {
 
   .sidebar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto auto minmax(260px, 42vh);
-  }
-
-  .chat-panel {
-    grid-column: 1 / -1;
+    grid-template-rows: auto auto;
   }
 }
 
@@ -550,7 +556,7 @@ input[type="checkbox"] {
     position: sticky;
     bottom: 10px;
     z-index: 5;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     padding: 8px;
   }
@@ -561,7 +567,7 @@ input[type="checkbox"] {
 
   .sidebar {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto 360px;
+    grid-template-rows: auto auto auto auto;
   }
 
   .empty-state {
