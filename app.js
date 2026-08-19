@@ -191,13 +191,14 @@ function createCroppedPhoto() {
   const outputSize = 256;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  const cropRect = cropArea.getBoundingClientRect();
-  const imageRect = cropImage.getBoundingClientRect();
-  const scale = outputSize / cropRect.width;
-  const drawX = (imageRect.left - cropRect.left) * scale;
-  const drawY = (imageRect.top - cropRect.top) * scale;
-  const drawWidth = imageRect.width * scale;
-  const drawHeight = imageRect.height * scale;
+  const zoom = Number(cropZoom.value);
+  const offsetX = Number(cropX.value) * (outputSize / cropArea.clientWidth);
+  const offsetY = Number(cropY.value) * (outputSize / cropArea.clientHeight);
+  const fitScale = Math.min(outputSize / cropImage.naturalWidth, outputSize / cropImage.naturalHeight);
+  const drawWidth = cropImage.naturalWidth * fitScale * zoom;
+  const drawHeight = cropImage.naturalHeight * fitScale * zoom;
+  const drawX = (outputSize - drawWidth) / 2 + offsetX;
+  const drawY = (outputSize - drawHeight) / 2 + offsetY;
 
   canvas.width = outputSize;
   canvas.height = outputSize;
@@ -261,12 +262,15 @@ function updateParticipants() {
 
 function renderAvatar(element, profile, isLocal = false) {
   element.textContent = "";
-  element.style.backgroundImage = "";
+  element.innerHTML = "";
   element.classList.toggle("has-photo", Boolean(profile.photo));
   element.classList.toggle("host", isLocal);
 
   if (profile.photo) {
-    element.style.backgroundImage = `url("${profile.photo}")`;
+    const image = document.createElement("img");
+    image.src = profile.photo;
+    image.alt = "";
+    element.append(image);
     return;
   }
 
