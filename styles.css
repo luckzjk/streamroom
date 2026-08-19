@@ -271,6 +271,9 @@ h1 {
 
 .screen-frame.focus-mode .stream-card.is-focused .back-button {
   display: grid;
+  z-index: 2;
+  background: var(--accent);
+  color: #06130d;
 }
 
 .empty-state {

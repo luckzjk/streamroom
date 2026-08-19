@@ -606,14 +606,25 @@ function addStreamCard(ownerId, stream, isLocal) {
     slider.dispatchEvent(new Event("input"));
   });
 
-  focusButton.addEventListener("click", () => focusStream(ownerId));
+  focusButton.addEventListener("click", () => toggleFocusStream(ownerId));
   backButton.addEventListener("click", clearFocusedStream);
-  card.addEventListener("dblclick", () => focusStream(ownerId));
+  card.addEventListener("dblclick", () => toggleFocusStream(ownerId));
 
   streamGrid.append(card);
   streamCards.set(ownerId, { card, video, stream, title });
   setVideoState(true, isLocal ? "broadcast" : "watching");
   return streamCards.get(ownerId);
+}
+
+function updateFocusButtons() {
+  streamCards.forEach(({ card }, id) => {
+    const button = card.querySelector(".focus-button");
+    const isFocused = focusedStreamId === id;
+
+    button.textContent = isFocused ? "↙" : "⛶";
+    button.title = isFocused ? "Voltar para todas as telas" : "Tela cheia";
+    button.setAttribute("aria-label", button.title);
+  });
 }
 
 function updateStreamTitle(ownerId) {
@@ -646,12 +657,23 @@ function focusStream(ownerId) {
   streamCards.forEach(({ card }, id) => {
     card.classList.toggle("is-focused", id === ownerId);
   });
+  updateFocusButtons();
+}
+
+function toggleFocusStream(ownerId) {
+  if (focusedStreamId === ownerId) {
+    clearFocusedStream();
+    return;
+  }
+
+  focusStream(ownerId);
 }
 
 function clearFocusedStream() {
   focusedStreamId = null;
   screenFrame.classList.remove("focus-mode");
   streamCards.forEach(({ card }) => card.classList.remove("is-focused"));
+  updateFocusButtons();
 }
 
 async function startScreenShare() {
