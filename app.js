@@ -637,9 +637,10 @@ function addStreamCard(ownerId, stream, isLocal) {
     <div class="stream-toolbar">
       <strong></strong>
       <div class="stream-actions">
-        <button type="button" class="volume-button" title="Diminuir volume" aria-label="Diminuir volume">−</button>
-        <input class="volume-slider" type="range" min="0" max="100" value="${isLocal ? "0" : "80"}" aria-label="Volume da transmissao" />
-        <button type="button" class="volume-button" title="Aumentar volume" aria-label="Aumentar volume">+</button>
+        <div class="volume-control">
+          <button type="button" class="speaker-button" title="Volume" aria-label="Abrir controle de volume" aria-expanded="false">🔊</button>
+          <input class="volume-slider" type="range" min="0" max="100" value="${isLocal ? "0" : "80"}" aria-label="Volume da transmissao" />
+        </div>
         <button type="button" class="focus-button" title="Tela cheia" aria-label="Tela cheia">⛶</button>
       </div>
     </div>
@@ -648,9 +649,9 @@ function addStreamCard(ownerId, stream, isLocal) {
 
   const video = card.querySelector("video");
   const title = card.querySelector("strong");
+  const volumeControl = card.querySelector(".volume-control");
+  const speakerButton = card.querySelector(".speaker-button");
   const slider = card.querySelector(".volume-slider");
-  const decrease = card.querySelector(".volume-button");
-  const increase = card.querySelectorAll(".volume-button")[1];
   const focusButton = card.querySelector(".focus-button");
   const backButton = card.querySelector(".back-button");
 
@@ -671,16 +672,12 @@ function addStreamCard(ownerId, stream, isLocal) {
   slider.addEventListener("input", () => {
     video.volume = Number(slider.value) / 100;
     video.muted = Number(slider.value) === 0 || isLocal;
+    speakerButton.textContent = Number(slider.value) === 0 || isLocal ? "🔇" : "🔊";
   });
 
-  decrease.addEventListener("click", () => {
-    slider.value = String(Math.max(0, Number(slider.value) - 10));
-    slider.dispatchEvent(new Event("input"));
-  });
-
-  increase.addEventListener("click", () => {
-    slider.value = String(Math.min(100, Number(slider.value) + 10));
-    slider.dispatchEvent(new Event("input"));
+  speakerButton.addEventListener("click", () => {
+    const isOpen = volumeControl.classList.toggle("is-open");
+    speakerButton.setAttribute("aria-expanded", String(isOpen));
   });
 
   focusButton.addEventListener("click", () => toggleFocusStream(ownerId));

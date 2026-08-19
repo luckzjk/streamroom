@@ -212,6 +212,21 @@ h1 {
   border-radius: 8px;
   background: rgba(10, 11, 14, 0.78);
   backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  pointer-events: none;
+}
+
+.stream-card:hover .stream-toolbar,
+.stream-card:focus-within .stream-toolbar,
+.stream-card:has(.volume-control.is-open) .stream-toolbar,
+.screen-frame.focus-mode .stream-card.is-focused .stream-toolbar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .stream-toolbar strong {
@@ -241,9 +256,28 @@ h1 {
   font-weight: 900;
 }
 
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.speaker-button {
+  font-size: 0.95rem;
+}
+
 .volume-slider {
-  width: 88px;
+  width: 0;
+  opacity: 0;
+  transition:
+    width 160ms ease,
+    opacity 160ms ease;
   accent-color: var(--accent);
+}
+
+.volume-control.is-open .volume-slider {
+  width: 120px;
+  opacity: 1;
 }
 
 .back-button {
