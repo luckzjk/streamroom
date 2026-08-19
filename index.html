@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamRoom</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="stage" aria-label="Transmissao">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Sala ativa</p>
+            <h1>StreamRoom</h1>
+          </div>
+          <div class="room-actions">
+            <span class="status-pill" id="connectionStatus">
+              <span class="dot"></span>
+              Pronto
+            </span>
+            <button class="icon-button" id="copyLinkButton" type="button" title="Copiar convite" aria-label="Copiar convite">
+              <span aria-hidden="true">⛓</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="screen-frame" id="screenFrame">
+          <video id="screenPreview" autoplay playsinline muted></video>
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon" aria-hidden="true">▣</div>
+            <h2>Escolha uma tela para transmitir</h2>
+            <p>Seu preview aparece aqui assim que o compartilhamento começar.</p>
+            <button class="primary-button" id="startShareHero" type="button">
+              <span aria-hidden="true">▶</span>
+              Iniciar transmissão
+            </button>
+          </div>
+          <div class="live-badge" id="liveBadge" hidden>
+            <span class="record-dot"></span>
+            Ao vivo
+          </div>
+        </div>
+
+        <footer class="control-bar" aria-label="Controles da chamada">
+          <button class="control-button" id="toggleMic" type="button" aria-pressed="true" title="Microfone">
+            <span aria-hidden="true">🎙</span>
+            <small>Mic</small>
+          </button>
+          <button class="control-button" id="toggleCamera" type="button" aria-pressed="false" title="Camera">
+            <span aria-hidden="true">◉</span>
+            <small>Cam</small>
+          </button>
+          <button class="control-button main-control" id="toggleShare" type="button" aria-pressed="false" title="Transmitir tela">
+            <span aria-hidden="true">▣</span>
+            <small>Tela</small>
+          </button>
+          <button class="control-button" id="toggleChat" type="button" aria-pressed="true" title="Chat">
+            <span aria-hidden="true">💬</span>
+            <small>Chat</small>
+          </button>
+          <button class="control-button danger" id="leaveButton" type="button" title="Sair">
+            <span aria-hidden="true">✕</span>
+            <small>Sair</small>
+          </button>
+        </footer>
+      </section>
+
+      <aside class="sidebar" id="sidebar" aria-label="Painel da sala">
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Convite</h2>
+            <span id="roomCode">Sala</span>
+          </div>
+          <div class="invite-row">
+            <input id="roomLink" type="text" readonly aria-label="Link de convite da sala" />
+            <button id="copyRoomLinkButton" type="button" title="Copiar convite" aria-label="Copiar convite">⛓</button>
+          </div>
+          <button class="secondary-button" id="createRoomButton" type="button">Criar nova sala</button>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Participantes</h2>
+            <span id="participantCount">1</span>
+          </div>
+          <ul class="participants" id="participantsList">
+            <li>
+              <span class="avatar host">VO</span>
+              <div>
+                <strong>Voce</strong>
+                <small>Conectando</small>
+              </div>
+              <span class="mini-indicator active" title="Online"></span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Qualidade</h2>
+            <span id="qualityLabel">1080p</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Qualidade da transmissao">
+            <button type="button" data-quality="720p">720p</button>
+            <button type="button" data-quality="1080p" class="selected">1080p</button>
+            <button type="button" data-quality="1440p">1440p</button>
+          </div>
+          <label class="setting-row">
+            <span>Baixa latencia</span>
+            <input id="lowLatency" type="checkbox" checked />
+          </label>
+          <label class="setting-row">
+            <span>Capturar audio da aba</span>
+            <input id="tabAudio" type="checkbox" checked />
+          </label>
+        </section>
+
+        <section class="panel chat-panel" id="chatPanel">
+          <div class="panel-heading">
+            <h2>Chat</h2>
+            <span id="messageCount">2</span>
+          </div>
+          <div class="messages" id="messages" aria-live="polite">
+            <article>
+              <strong>Amanda</strong>
+              <p>A imagem ficou lisa aqui.</p>
+            </article>
+            <article>
+              <strong>Renan</strong>
+              <p>Quando trocar de janela avisa.</p>
+            </article>
+          </div>
+          <form class="message-form" id="messageForm">
+            <input id="messageInput" type="text" autocomplete="off" placeholder="Mensagem" aria-label="Mensagem" />
+            <button type="submit" title="Enviar" aria-label="Enviar mensagem">➜</button>
+          </form>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
