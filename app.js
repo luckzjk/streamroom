@@ -656,7 +656,7 @@ function addStreamCard(ownerId, stream, isLocal) {
   const backButton = card.querySelector(".back-button");
 
   video.srcObject = stream;
-  video.muted = isLocal;
+  video.muted = Number(slider.value) === 0;
   video.volume = Number(slider.value) / 100;
   title.textContent = isLocal ? `${profile.name} (voce)` : profile.name;
 
@@ -669,11 +669,14 @@ function addStreamCard(ownerId, stream, isLocal) {
     });
   });
 
-  slider.addEventListener("input", () => {
+  function updateVolumeState() {
     video.volume = Number(slider.value) / 100;
-    video.muted = Number(slider.value) === 0 || isLocal;
-    speakerButton.textContent = Number(slider.value) === 0 || isLocal ? "🔇" : "🔊";
-  });
+    video.muted = Number(slider.value) === 0;
+    speakerButton.textContent = Number(slider.value) === 0 ? "🔇" : "🔊";
+  }
+
+  slider.addEventListener("input", updateVolumeState);
+  updateVolumeState();
 
   speakerButton.addEventListener("click", () => {
     const isOpen = volumeControl.classList.toggle("is-open");
