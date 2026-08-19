@@ -7,7 +7,10 @@ const toggleShare = document.querySelector("#toggleShare");
 const toggleMic = document.querySelector("#toggleMic");
 const toggleCamera = document.querySelector("#toggleCamera");
 const leaveButton = document.querySelector("#leaveButton");
-const copyLinkButton = document.querySelector("#copyLinkButton");
+const drawerToggle = document.querySelector("#drawerToggle");
+const drawerClose = document.querySelector("#drawerClose");
+const drawerBackdrop = document.querySelector("#drawerBackdrop");
+const sidebar = document.querySelector("#sidebar");
 const copyRoomLinkButton = document.querySelector("#copyRoomLinkButton");
 const createRoomForm = document.querySelector("#createRoomForm");
 const newRoomName = document.querySelector("#newRoomName");
@@ -110,6 +113,23 @@ function setRoomUi() {
 function setProfileUi() {
   profileName.value = localProfile.name;
   renderAvatar(profilePreview, localProfile, true);
+}
+
+function setDrawerOpen(isOpen) {
+  sidebar.classList.toggle("is-open", isOpen);
+  drawerToggle.setAttribute("aria-expanded", String(isOpen));
+  sidebar.setAttribute("aria-hidden", String(!isOpen));
+
+  if (isOpen) {
+    drawerBackdrop.hidden = false;
+    requestAnimationFrame(() => drawerBackdrop.classList.add("is-open"));
+    return;
+  }
+
+  drawerBackdrop.classList.remove("is-open");
+  window.setTimeout(() => {
+    drawerBackdrop.hidden = true;
+  }, 180);
 }
 
 function setStatus(text, live = false) {
@@ -535,14 +555,13 @@ leaveButton.addEventListener("click", () => {
   setStatus("Desconectado");
 });
 
-copyLinkButton.addEventListener("click", async () => {
-  const invite = getInviteLink();
+drawerToggle.addEventListener("click", () => setDrawerOpen(true));
+drawerClose.addEventListener("click", () => setDrawerOpen(false));
+drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
 
-  try {
-    await navigator.clipboard.writeText(invite);
-    showToast("Convite copiado.");
-  } catch {
-    showToast(invite);
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setDrawerOpen(false);
   }
 });
 
@@ -567,7 +586,8 @@ createRoomForm.addEventListener("submit", async (event) => {
     }),
   });
   const room = await response.json();
-  window.location.assign(`${window.location.origin}${window.location.pathname}#${room.id}`);
+  window.location.hash = room.id;
+  window.location.reload();
 });
 
 profileForm.addEventListener("submit", async (event) => {

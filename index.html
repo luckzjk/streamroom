@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>StreamRoom</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -19,8 +20,8 @@
               <span class="dot"></span>
               Pronto
             </span>
-            <button class="icon-button" id="copyLinkButton" type="button" title="Copiar convite" aria-label="Copiar convite">
-              <span aria-hidden="true">⛓</span>
+            <button class="clover-button" id="drawerToggle" type="button" title="Abrir painel da sala" aria-label="Abrir painel da sala" aria-expanded="false" aria-controls="sidebar">
+              <span class="clover-icon" aria-hidden="true"></span>
             </button>
           </div>
         </header>
@@ -62,7 +63,16 @@
         </footer>
       </section>
 
-      <aside class="sidebar" id="sidebar" aria-label="Painel da sala">
+      <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+      <aside class="sidebar" id="sidebar" aria-label="Painel da sala" aria-hidden="true">
+        <div class="drawer-header">
+          <div>
+            <p class="eyebrow">Painel</p>
+            <h2>Sala e perfil</h2>
+          </div>
+          <button class="icon-button" id="drawerClose" type="button" title="Fechar painel" aria-label="Fechar painel">✕</button>
+        </div>
+
         <section class="panel compact">
           <div class="panel-heading">
             <h2>Nova sala</h2>
