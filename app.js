@@ -1,5 +1,6 @@
-const screenPreview = document.querySelector("#screenPreview");
 const screenFrame = document.querySelector("#screenFrame");
+const streamGrid = document.querySelector("#streamGrid");
+const emptyState = document.querySelector("#emptyState");
 const liveBadge = document.querySelector("#liveBadge");
 const connectionStatus = document.querySelector("#connectionStatus");
 const startShareHero = document.querySelector("#startShareHero");
@@ -33,7 +34,8 @@ const localProfile = getLocalProfile();
 const peers = new Map();
 const participants = new Map([[peerId, localProfile]]);
 const pendingCandidates = new Map();
-const remoteStream = new MediaStream();
+const streamCards = new Map();
+const localSenders = new Map();
 const roomState = {
   id: roomId,
   name: `Sala ${roomId.replace("sala-", "")}`,
@@ -44,6 +46,7 @@ const roomState = {
 let screenStream = null;
 let eventSource = null;
 let toastTimer = 0;
+let focusedStreamId = null;
 
 const rtcConfig = { iceServers: [] };
 
@@ -138,9 +141,11 @@ function setStatus(text, live = false) {
 }
 
 function setVideoState(isLive, mode = "ready") {
-  screenFrame.classList.toggle("is-live", isLive);
-  liveBadge.hidden = !isLive;
-  liveBadge.style.display = isLive ? "inline-flex" : "none";
+  const hasStreams = streamCards.size > 0;
+  screenFrame.classList.toggle("is-live", hasStreams);
+  emptyState.hidden = hasStreams;
+  liveBadge.hidden = !screenStream;
+  liveBadge.style.display = screenStream ? "inline-flex" : "none";
   toggleShare.setAttribute("aria-pressed", String(Boolean(screenStream)));
 
   if (mode === "broadcast") {
@@ -153,7 +158,7 @@ function setVideoState(isLive, mode = "ready") {
     return;
   }
 
-  setStatus(eventSource ? "Conectado" : "Pronto", false);
+  setStatus(eventSource ? (hasStreams ? "Assistindo" : "Conectado") : "Pronto", false);
 }
 
 function updateParticipants() {
@@ -211,6 +216,45 @@ function getShortId(id) {
 
 function getSelectedQuality() {
   return document.querySelector(".segmented .selected")?.dataset.quality || "1080p";
+}
+
+async function captureDisplayMedia(preset, captureAudio) {
+  const advancedConstraints = {
+    video: {
+      width: { ideal: preset.width },
+      height: { ideal: preset.height },
+      frameRate: { ideal: preset.frameRate },
+      displaySurface: "browser",
+    },
+    audio: captureAudio
+      ? {
+          echoCancellation: true,
+          noiseSuppression: true,
+          suppressLocalAudioPlayback: true,
+        }
+      : false,
+    preferCurrentTab: true,
+    selfBrowserSurface: "exclude",
+    systemAudio: "exclude",
+    windowAudio: "exclude",
+  };
+
+  try {
+    return await navigator.mediaDevices.getDisplayMedia(advancedConstraints);
+  } catch (error) {
+    if (error.name !== "TypeError") {
+      throw error;
+    }
+
+    return navigator.mediaDevices.getDisplayMedia({
+      video: {
+        width: { ideal: preset.width },
+        height: { ideal: preset.height },
+        frameRate: { ideal: preset.frameRate },
+      },
+      audio: captureAudio,
+    });
+  }
 }
 
 async function sendSignal(message) {
@@ -311,6 +355,7 @@ async function handleSignal(message) {
 
   if (type === "peer-left") {
     closePeer(from);
+    removeStreamCard(from);
     participants.delete(from);
     updateParticipants();
     return;
@@ -318,18 +363,14 @@ async function handleSignal(message) {
 
   if (type === "profile-updated") {
     participants.set(from, profile || payload || participants.get(from));
+    updateStreamTitle(from);
     updateParticipants();
     return;
   }
 
   if (type === "stream-stopped") {
-    closePeer(from);
-    remoteStream.getTracks().forEach((track) => remoteStream.removeTrack(track));
-
-    if (!screenStream) {
-      screenPreview.srcObject = null;
-      setVideoState(false);
-    }
+    removeStreamCard(from);
+    setVideoState(streamCards.size > 0);
     return;
   }
 
@@ -366,6 +407,9 @@ function createPeerConnection(remotePeerId) {
   }
 
   const peer = new RTCPeerConnection(rtcConfig);
+  peer.__makingOffer = false;
+  peer.__ignoreOffer = false;
+  peer.__polite = peerId > remotePeerId;
 
   peer.onicecandidate = (event) => {
     if (event.candidate) {
@@ -378,15 +422,22 @@ function createPeerConnection(remotePeerId) {
   };
 
   peer.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      if (!remoteStream.getTracks().some((item) => item.id === track.id)) {
-        remoteStream.addTrack(track);
-      }
-    });
-
-    screenPreview.muted = false;
-    screenPreview.srcObject = remoteStream;
+    const [stream] = event.streams;
+    addStreamCard(remotePeerId, stream, false);
     setVideoState(true, "watching");
+  };
+
+  peer.onnegotiationneeded = async () => {
+    try {
+      peer.__makingOffer = true;
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await sendSignal({ type: "offer", to: remotePeerId, payload: peer.localDescription });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      peer.__makingOffer = false;
+    }
   };
 
   peer.onconnectionstatechange = () => {
@@ -402,11 +453,7 @@ function createPeerConnection(remotePeerId) {
 async function createOffer(remotePeerId) {
   const peer = createPeerConnection(remotePeerId);
 
-  screenStream.getTracks().forEach((track) => {
-    if (!peer.getSenders().some((sender) => sender.track?.id === track.id)) {
-      peer.addTrack(track, screenStream);
-    }
-  });
+  addLocalTracksToPeer(remotePeerId, peer);
 
   const offer = await peer.createOffer();
   await peer.setLocalDescription(offer);
@@ -415,8 +462,20 @@ async function createOffer(remotePeerId) {
 
 async function receiveOffer(remotePeerId, offer) {
   const peer = createPeerConnection(remotePeerId);
+  const offerCollision = peer.__makingOffer || peer.signalingState !== "stable";
+
+  peer.__ignoreOffer = !peer.__polite && offerCollision;
+
+  if (peer.__ignoreOffer) {
+    return;
+  }
+
   await peer.setRemoteDescription(offer);
   await flushPendingCandidates(remotePeerId, peer);
+
+  if (screenStream) {
+    addLocalTracksToPeer(remotePeerId, peer);
+  }
 
   const answer = await peer.createAnswer();
   await peer.setLocalDescription(answer);
@@ -436,6 +495,10 @@ async function receiveAnswer(remotePeerId, answer) {
 
 async function receiveCandidate(remotePeerId, candidate) {
   const peer = peers.get(remotePeerId);
+
+  if (peer?.__ignoreOffer) {
+    return;
+  }
 
   if (!peer?.remoteDescription) {
     const queue = pendingCandidates.get(remotePeerId) || [];
@@ -461,6 +524,134 @@ function closePeer(remotePeerId) {
   peers.get(remotePeerId)?.close();
   peers.delete(remotePeerId);
   pendingCandidates.delete(remotePeerId);
+  localSenders.delete(remotePeerId);
+}
+
+function addLocalTracksToPeer(remotePeerId, peer) {
+  if (!screenStream) return;
+
+  const senders = localSenders.get(remotePeerId) || [];
+
+  screenStream.getTracks().forEach((track) => {
+    if (!senders.some((sender) => sender.track?.id === track.id)) {
+      senders.push(peer.addTrack(track, screenStream));
+    }
+  });
+
+  localSenders.set(remotePeerId, senders);
+}
+
+function addStreamCard(ownerId, stream, isLocal) {
+  const existing = streamCards.get(ownerId);
+  const profile = participants.get(ownerId) || localProfile;
+
+  if (existing) {
+    existing.video.srcObject = stream;
+    existing.stream = stream;
+    updateStreamTitle(ownerId);
+    return existing;
+  }
+
+  const card = document.createElement("article");
+  card.className = "stream-card";
+  card.dataset.streamId = ownerId;
+  card.innerHTML = `
+    <video autoplay playsinline></video>
+    <div class="stream-toolbar">
+      <strong></strong>
+      <div class="stream-actions">
+        <button type="button" class="volume-button" title="Diminuir volume" aria-label="Diminuir volume">−</button>
+        <input class="volume-slider" type="range" min="0" max="100" value="${isLocal ? "0" : "80"}" aria-label="Volume da transmissao" />
+        <button type="button" class="volume-button" title="Aumentar volume" aria-label="Aumentar volume">+</button>
+        <button type="button" class="focus-button" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+      </div>
+    </div>
+    <button type="button" class="back-button" title="Voltar para todas as telas">Voltar</button>
+  `;
+
+  const video = card.querySelector("video");
+  const title = card.querySelector("strong");
+  const slider = card.querySelector(".volume-slider");
+  const decrease = card.querySelector(".volume-button");
+  const increase = card.querySelectorAll(".volume-button")[1];
+  const focusButton = card.querySelector(".focus-button");
+  const backButton = card.querySelector(".back-button");
+
+  video.srcObject = stream;
+  video.muted = isLocal;
+  video.volume = Number(slider.value) / 100;
+  title.textContent = isLocal ? `${profile.name} (voce)` : profile.name;
+
+  stream.getTracks().forEach((track) => {
+    track.addEventListener("ended", () => {
+      if (!stream.getTracks().some((item) => item.readyState === "live")) {
+        removeStreamCard(ownerId);
+        setVideoState(streamCards.size > 0);
+      }
+    });
+  });
+
+  slider.addEventListener("input", () => {
+    video.volume = Number(slider.value) / 100;
+    video.muted = Number(slider.value) === 0 || isLocal;
+  });
+
+  decrease.addEventListener("click", () => {
+    slider.value = String(Math.max(0, Number(slider.value) - 10));
+    slider.dispatchEvent(new Event("input"));
+  });
+
+  increase.addEventListener("click", () => {
+    slider.value = String(Math.min(100, Number(slider.value) + 10));
+    slider.dispatchEvent(new Event("input"));
+  });
+
+  focusButton.addEventListener("click", () => focusStream(ownerId));
+  backButton.addEventListener("click", clearFocusedStream);
+  card.addEventListener("dblclick", () => focusStream(ownerId));
+
+  streamGrid.append(card);
+  streamCards.set(ownerId, { card, video, stream, title });
+  setVideoState(true, isLocal ? "broadcast" : "watching");
+  return streamCards.get(ownerId);
+}
+
+function updateStreamTitle(ownerId) {
+  const item = streamCards.get(ownerId);
+  const profile = participants.get(ownerId) || localProfile;
+
+  if (item) {
+    item.title.textContent = ownerId === peerId ? `${profile.name} (voce)` : profile.name;
+  }
+}
+
+function removeStreamCard(ownerId) {
+  const item = streamCards.get(ownerId);
+
+  if (!item) return;
+
+  item.card.remove();
+  streamCards.delete(ownerId);
+
+  if (focusedStreamId === ownerId) {
+    clearFocusedStream();
+  }
+}
+
+function focusStream(ownerId) {
+  if (!streamCards.has(ownerId)) return;
+
+  focusedStreamId = ownerId;
+  screenFrame.classList.add("focus-mode");
+  streamCards.forEach(({ card }, id) => {
+    card.classList.toggle("is-focused", id === ownerId);
+  });
+}
+
+function clearFocusedStream() {
+  focusedStreamId = null;
+  screenFrame.classList.remove("focus-mode");
+  streamCards.forEach(({ card }) => card.classList.remove("is-focused"));
 }
 
 async function startScreenShare() {
@@ -478,19 +669,11 @@ async function startScreenShare() {
   const captureAudio = document.querySelector("#tabAudio").checked;
 
   try {
-    screenStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        width: { ideal: preset.width },
-        height: { ideal: preset.height },
-        frameRate: { ideal: preset.frameRate },
-      },
-      audio: captureAudio,
-    });
+    screenStream = await captureDisplayMedia(preset, captureAudio);
 
-    screenPreview.muted = true;
-    screenPreview.srcObject = screenStream;
+    addStreamCard(peerId, screenStream, true);
     setVideoState(true, "broadcast");
-    showToast("Transmissao iniciada. Envie o convite para outro dispositivo.");
+    showToast("Transmissao iniciada. Para evitar Discord, prefira compartilhar uma aba.");
 
     const [track] = screenStream.getVideoTracks();
     track.addEventListener("ended", stopScreenShare, { once: true });
@@ -514,11 +697,14 @@ async function stopScreenShare() {
     screenStream = null;
   }
 
-  peers.forEach((peer) => peer.close());
-  peers.clear();
-  screenPreview.srcObject = null;
-  remoteStream.getTracks().forEach((track) => remoteStream.removeTrack(track));
-  setVideoState(false);
+  localSenders.forEach((senders, remotePeerId) => {
+    const peer = peers.get(remotePeerId);
+    if (!peer) return;
+    senders.forEach((sender) => peer.removeTrack(sender));
+  });
+  localSenders.clear();
+  removeStreamCard(peerId);
+  setVideoState(streamCards.size > 0);
   await sendSignal({ type: "stream-stopped", to: "all" });
   showToast("Transmissao encerrada.");
 }
@@ -597,6 +783,7 @@ profileForm.addEventListener("submit", async (event) => {
   participants.set(peerId, localProfile);
   setProfileUi();
   updateParticipants();
+  updateStreamTitle(peerId);
   await sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
   showToast("Perfil atualizado.");
 });
@@ -621,6 +808,7 @@ profilePhoto.addEventListener("change", () => {
     participants.set(peerId, localProfile);
     setProfileUi();
     updateParticipants();
+    updateStreamTitle(peerId);
     sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
   });
   reader.readAsDataURL(file);

@@ -156,8 +156,6 @@ h1 {
 
 .screen-frame {
   position: relative;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   min-height: 420px;
   border: 1px solid var(--line);
@@ -170,27 +168,120 @@ h1 {
   box-shadow: var(--shadow);
 }
 
-video {
-  display: none;
+.stream-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  padding: 12px;
+}
+
+.stream-card {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  min-height: 230px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #050609;
+}
+
+.stream-card video {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #050609;
 }
 
-.screen-frame.is-live video {
-  display: block;
+.stream-toolbar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(10, 11, 14, 0.78);
+  backdrop-filter: blur(14px);
 }
 
-.screen-frame.is-live .empty-state {
+.stream-toolbar strong {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.stream-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.stream-actions button,
+.back-button {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.11);
+  font-weight: 900;
+}
+
+.volume-slider {
+  width: 88px;
+  accent-color: var(--accent);
+}
+
+.back-button {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: none;
+  width: auto;
+  padding: 0 12px;
+}
+
+.screen-frame.focus-mode .stream-grid {
+  grid-template-columns: 1fr;
+}
+
+.screen-frame.focus-mode .stream-card {
   display: none;
 }
 
+.screen-frame.focus-mode .stream-card.is-focused {
+  display: grid;
+  min-height: calc(100vh - 190px);
+  aspect-ratio: auto;
+}
+
+.screen-frame.focus-mode .stream-card.is-focused .back-button {
+  display: grid;
+}
+
 .empty-state {
+  position: absolute;
+  inset: 0;
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 14px;
   max-width: 420px;
+  margin: auto;
   padding: 28px;
   text-align: center;
 }
@@ -625,6 +716,28 @@ input[type="checkbox"] {
 
   .screen-frame {
     min-height: 280px;
+  }
+
+  .stream-grid {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  .stream-card {
+    min-height: 210px;
+  }
+
+  .stream-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stream-actions {
+    width: 100%;
+  }
+
+  .volume-slider {
+    width: 100%;
   }
 
   .control-bar {

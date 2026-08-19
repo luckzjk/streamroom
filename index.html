@@ -27,11 +27,11 @@
         </header>
 
         <div class="screen-frame" id="screenFrame">
-          <video id="screenPreview" autoplay playsinline muted></video>
+          <div class="stream-grid" id="streamGrid" aria-live="polite"></div>
           <div class="empty-state" id="emptyState">
             <div class="empty-icon" aria-hidden="true">▣</div>
             <h2>Escolha uma tela para transmitir</h2>
-            <p>Seu preview aparece aqui assim que o compartilhamento começar.</p>
+            <p>As transmissoes da sala aparecem aqui em telas separadas.</p>
             <button class="primary-button" id="startShareHero" type="button">
               <span aria-hidden="true">▶</span>
               Iniciar transmissão
@@ -99,6 +99,7 @@
             <span>Capturar audio da aba</span>
             <input id="tabAudio" type="checkbox" checked />
           </label>
+          <p class="room-meta">Para evitar audio do Discord, compartilhe uma aba e nao a tela inteira.</p>
         </section>
       </aside>
 
