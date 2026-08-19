@@ -20,6 +20,14 @@ const profileForm = document.querySelector("#profileForm");
 const profileName = document.querySelector("#profileName");
 const profilePhoto = document.querySelector("#profilePhoto");
 const profilePreview = document.querySelector("#profilePreview");
+const photoEditor = document.querySelector("#photoEditor");
+const cropArea = document.querySelector("#cropArea");
+const cropImage = document.querySelector("#cropImage");
+const cropZoom = document.querySelector("#cropZoom");
+const cropX = document.querySelector("#cropX");
+const cropY = document.querySelector("#cropY");
+const savePhotoEdit = document.querySelector("#savePhotoEdit");
+const cancelPhotoEdit = document.querySelector("#cancelPhotoEdit");
 const roomCode = document.querySelector("#roomCode");
 const roomLink = document.querySelector("#roomLink");
 const roomMeta = document.querySelector("#roomMeta");
@@ -47,6 +55,7 @@ let screenStream = null;
 let eventSource = null;
 let toastTimer = 0;
 let focusedStreamId = null;
+let cropSource = null;
 
 const rtcConfig = { iceServers: [] };
 
@@ -133,6 +142,70 @@ function setDrawerOpen(isOpen) {
   window.setTimeout(() => {
     drawerBackdrop.hidden = true;
   }, 180);
+}
+
+function setPhotoEditorOpen(isOpen) {
+  photoEditor.hidden = !isOpen;
+}
+
+function resetCropControls() {
+  cropZoom.value = "1";
+  cropX.value = "0";
+  cropY.value = "0";
+}
+
+function updateCropPreview() {
+  const zoom = Number(cropZoom.value);
+  const x = Number(cropX.value);
+  const y = Number(cropY.value);
+  const naturalRatio = cropImage.naturalWidth / cropImage.naturalHeight;
+  const boxSize = cropArea.clientWidth;
+
+  if (naturalRatio >= 1) {
+    cropImage.style.height = `${boxSize * zoom}px`;
+    cropImage.style.width = "auto";
+  } else {
+    cropImage.style.width = `${boxSize * zoom}px`;
+    cropImage.style.height = "auto";
+  }
+
+  cropImage.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+}
+
+function openPhotoEditor(source) {
+  cropSource = source;
+  resetCropControls();
+  cropImage.src = source;
+  cropImage.onload = updateCropPreview;
+  setPhotoEditorOpen(true);
+}
+
+function closePhotoEditor() {
+  setPhotoEditorOpen(false);
+  cropSource = null;
+  cropImage.removeAttribute("src");
+  profilePhoto.value = "";
+}
+
+function createCroppedPhoto() {
+  const outputSize = 256;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  const cropRect = cropArea.getBoundingClientRect();
+  const imageRect = cropImage.getBoundingClientRect();
+  const scale = outputSize / cropRect.width;
+  const drawX = (imageRect.left - cropRect.left) * scale;
+  const drawY = (imageRect.top - cropRect.top) * scale;
+  const drawWidth = imageRect.width * scale;
+  const drawHeight = imageRect.height * scale;
+
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+  context.fillStyle = "#101114";
+  context.fillRect(0, 0, outputSize, outputSize);
+  context.drawImage(cropImage, drawX, drawY, drawWidth, drawHeight);
+
+  return canvas.toDataURL("image/jpeg", 0.84);
 }
 
 function setStatus(text, live = false) {
@@ -769,6 +842,11 @@ drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (!photoEditor.hidden) {
+      closePhotoEditor();
+      return;
+    }
+
     setDrawerOpen(false);
   }
 });
@@ -817,23 +895,37 @@ profilePhoto.addEventListener("change", () => {
     return;
   }
 
-  if (file.size > 180000) {
-    showToast("Use uma imagem menor que 180 KB.");
+  if (!file.type.startsWith("image/")) {
+    showToast("Escolha um arquivo de imagem.");
     profilePhoto.value = "";
     return;
   }
 
   const reader = new FileReader();
   reader.addEventListener("load", () => {
-    localProfile.photo = reader.result;
-    saveLocalProfile(localProfile);
-    participants.set(peerId, localProfile);
-    setProfileUi();
-    updateParticipants();
-    updateStreamTitle(peerId);
-    sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
+    openPhotoEditor(reader.result);
   });
   reader.readAsDataURL(file);
+});
+
+[cropZoom, cropX, cropY].forEach((input) => {
+  input.addEventListener("input", updateCropPreview);
+});
+
+cancelPhotoEdit.addEventListener("click", closePhotoEditor);
+
+savePhotoEdit.addEventListener("click", () => {
+  if (!cropSource) return;
+
+  localProfile.photo = createCroppedPhoto();
+  saveLocalProfile(localProfile);
+  participants.set(peerId, localProfile);
+  setProfileUi();
+  updateParticipants();
+  updateStreamTitle(peerId);
+  sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
+  closePhotoEditor();
+  showToast("Foto atualizada.");
 });
 
 document.querySelectorAll("[data-quality]").forEach((button) => {

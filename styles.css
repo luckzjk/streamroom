@@ -688,6 +688,68 @@ input[type="checkbox"] {
   transform: translateY(0);
 }
 
+.photo-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.photo-editor[hidden] {
+  display: none;
+}
+
+.photo-editor-card {
+  width: min(420px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(24, 26, 32, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.crop-area {
+  position: relative;
+  overflow: hidden;
+  width: min(280px, 74vw);
+  height: min(280px, 74vw);
+  margin: 8px auto 16px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: #050609;
+}
+
+.crop-area img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  transform-origin: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.crop-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.crop-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.crop-controls input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
