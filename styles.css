@@ -39,12 +39,16 @@ button {
 }
 
 .app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 18px;
   min-height: 100vh;
   padding: 18px;
 }
 
 .stage,
-.sidebar {
+.sidebar,
+.room-info {
   min-width: 0;
 }
 
@@ -133,73 +137,21 @@ h1 {
 }
 
 .clover-button {
-  position: relative;
   display: grid;
   place-items: center;
   width: 50px;
   height: 50px;
   border-radius: 50%;
+  overflow: hidden;
+  padding: 5px;
   background: rgba(53, 201, 136, 0.13);
   box-shadow: inset 0 0 0 1px rgba(53, 201, 136, 0.32);
 }
 
-.clover-button::before {
-  content: "";
-  position: absolute;
-  left: 17px;
-  top: 27px;
-  width: 18px;
-  height: 18px;
-  background: var(--accent);
-  border-radius: 18px 4px 18px 18px;
-  transform: rotate(45deg);
-}
-
-.clover-button::after {
-  content: "";
-  position: absolute;
-  left: 28px;
-  top: 31px;
-  width: 4px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--accent);
-  transform: rotate(-32deg);
-  transform-origin: top center;
-}
-
-.clover-icon,
-.clover-icon::before,
-.clover-icon::after {
-  display: block;
-  width: 18px;
-  height: 18px;
-  background: var(--accent);
-  border-radius: 18px 18px 4px 18px;
-}
-
-.clover-icon {
-  position: relative;
-  transform: rotate(45deg);
-  z-index: 1;
-}
-
-.clover-icon::before,
-.clover-icon::after {
-  content: "";
-  position: absolute;
-}
-
-.clover-icon::before {
-  left: -14px;
-  top: 0;
-  transform: rotate(-90deg);
-}
-
-.clover-icon::after {
-  left: 0;
-  top: -14px;
-  transform: rotate(90deg);
+.clover-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .screen-frame {
@@ -356,6 +308,12 @@ video {
   padding: 14px;
 }
 
+.room-info {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 14px;
+}
+
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -393,11 +351,19 @@ video {
 }
 
 .drawer-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 42px;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   padding: 4px 2px 2px;
+}
+
+.drawer-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: rgba(53, 201, 136, 0.1);
 }
 
 .drawer-header h2 {
@@ -625,8 +591,16 @@ input[type="checkbox"] {
 }
 
 @media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
   .stage {
     grid-template-rows: auto minmax(360px, 58vh) auto;
+  }
+
+  .room-info {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -673,5 +647,9 @@ input[type="checkbox"] {
   .clover-button {
     width: 46px;
     height: 46px;
+  }
+
+  .room-info {
+    grid-template-columns: 1fr;
   }
 }

@@ -21,7 +21,7 @@
               Pronto
             </span>
             <button class="clover-button" id="drawerToggle" type="button" title="Abrir painel da sala" aria-label="Abrir painel da sala" aria-expanded="false" aria-controls="sidebar">
-              <span class="clover-icon" aria-hidden="true"></span>
+              <img src="favicon.svg" alt="" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -63,9 +63,49 @@
         </footer>
       </section>
 
+      <aside class="room-info" aria-label="Informacoes da sala">
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Participantes</h2>
+            <span id="participantCount">1</span>
+          </div>
+          <ul class="participants" id="participantsList">
+            <li>
+              <span class="avatar host">VO</span>
+              <div>
+                <strong>Voce</strong>
+                <small>Conectando</small>
+              </div>
+              <span class="mini-indicator active" title="Online"></span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel compact">
+          <div class="panel-heading">
+            <h2>Qualidade</h2>
+            <span id="qualityLabel">1080p</span>
+          </div>
+          <div class="segmented" role="group" aria-label="Qualidade da transmissao">
+            <button type="button" data-quality="720p">720p</button>
+            <button type="button" data-quality="1080p" class="selected">1080p</button>
+            <button type="button" data-quality="1440p">1440p</button>
+          </div>
+          <label class="setting-row">
+            <span>Baixa latencia</span>
+            <input id="lowLatency" type="checkbox" checked />
+          </label>
+          <label class="setting-row">
+            <span>Capturar audio da aba</span>
+            <input id="tabAudio" type="checkbox" checked />
+          </label>
+        </section>
+      </aside>
+
       <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
       <aside class="sidebar" id="sidebar" aria-label="Painel da sala" aria-hidden="true">
         <div class="drawer-header">
+          <img class="drawer-logo" src="favicon.svg" alt="" aria-hidden="true" />
           <div>
             <p class="eyebrow">Painel</p>
             <h2>Sala e perfil</h2>
@@ -121,44 +161,6 @@
             <button class="secondary-button" type="submit">Salvar perfil</button>
           </form>
         </section>
-
-        <section class="panel compact">
-          <div class="panel-heading">
-            <h2>Participantes</h2>
-            <span id="participantCount">1</span>
-          </div>
-          <ul class="participants" id="participantsList">
-            <li>
-              <span class="avatar host">VO</span>
-              <div>
-                <strong>Voce</strong>
-                <small>Conectando</small>
-              </div>
-              <span class="mini-indicator active" title="Online"></span>
-            </li>
-          </ul>
-        </section>
-
-        <section class="panel compact">
-          <div class="panel-heading">
-            <h2>Qualidade</h2>
-            <span id="qualityLabel">1080p</span>
-          </div>
-          <div class="segmented" role="group" aria-label="Qualidade da transmissao">
-            <button type="button" data-quality="720p">720p</button>
-            <button type="button" data-quality="1080p" class="selected">1080p</button>
-            <button type="button" data-quality="1440p">1440p</button>
-          </div>
-          <label class="setting-row">
-            <span>Baixa latencia</span>
-            <input id="lowLatency" type="checkbox" checked />
-          </label>
-          <label class="setting-row">
-            <span>Capturar audio da aba</span>
-            <input id="tabAudio" type="checkbox" checked />
-          </label>
-        </section>
-
       </aside>
     </main>
 
