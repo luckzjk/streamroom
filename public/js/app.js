@@ -380,7 +380,7 @@ function connectSignaling() {
   eventSource = new EventSource(`/events?${params}`);
 
   eventSource.onopen = () => {
-    setVideoState(Boolean(screenStream || remoteStream.getTracks().length));
+    setVideoState(Boolean(screenStream || streamCards.size));
     sendSignal({ type: "viewer-ready", to: "all" });
     sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
   };
@@ -735,6 +735,10 @@ function focusStream(ownerId) {
     card.classList.toggle("is-focused", id === ownerId);
   });
   updateFocusButtons();
+
+  if (screenFrame.requestFullscreen && document.fullscreenElement !== screenFrame) {
+    screenFrame.requestFullscreen().catch(() => {});
+  }
 }
 
 function toggleFocusStream(ownerId) {
@@ -751,6 +755,10 @@ function clearFocusedStream() {
   screenFrame.classList.remove("focus-mode");
   streamCards.forEach(({ card }) => card.classList.remove("is-focused"));
   updateFocusButtons();
+
+  if (document.fullscreenElement === screenFrame) {
+    document.exitFullscreen().catch(() => {});
+  }
 }
 
 async function startScreenShare() {
@@ -852,6 +860,15 @@ window.addEventListener("keydown", (event) => {
     }
 
     setDrawerOpen(false);
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && focusedStreamId) {
+    focusedStreamId = null;
+    screenFrame.classList.remove("focus-mode");
+    streamCards.forEach(({ card }) => card.classList.remove("is-focused"));
+    updateFocusButtons();
   }
 });
 

@@ -4,6 +4,16 @@ Site de salas com convite para transmissao de tela via WebRTC.
 
 Cada sala pode ter nome proprio e limite de participantes. Dentro da sala, cada pessoa pode salvar o nome exibido e uma foto local, que aparecem para os outros participantes conectados.
 
+## Estrutura
+
+```text
+server/          Backend Node.js e sinalizacao WebRTC
+public/          Arquivos servidos ao navegador
+public/css/      Estilos
+public/js/       JavaScript do cliente
+public/assets/   Imagens e icones
+```
+
 ## Rodar localmente
 
 ```bash

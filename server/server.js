@@ -6,7 +6,7 @@ const { randomUUID } = require("node:crypto");
 
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
-const root = __dirname;
+const publicRoot = path.join(__dirname, "..", "public");
 const rooms = new Map();
 const iceServers = [
   { urls: process.env.STUN_URL || "stun:stun.l.google.com:19302" },
@@ -116,9 +116,9 @@ function readJson(request) {
 function serveFile(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
-  const filePath = path.normalize(path.join(root, pathname));
+  const filePath = path.normalize(path.join(publicRoot, pathname));
 
-  if (!filePath.startsWith(root)) {
+  if (!filePath.startsWith(publicRoot)) {
     response.writeHead(403);
     response.end("Forbidden");
     return;
