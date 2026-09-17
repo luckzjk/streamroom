@@ -10,32 +10,22 @@
   <body>
     <main class="app-shell">
       <section class="stage" aria-label="Transmissao">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Sala ativa</p>
-            <h1>StreamRoom</h1>
-          </div>
-          <div class="room-actions">
-            <span class="status-pill" id="connectionStatus">
-              <span class="dot"></span>
-              Pronto
-            </span>
-            <button class="clover-button" id="drawerToggle" type="button" title="Abrir painel da sala" aria-label="Abrir painel da sala" aria-expanded="false" aria-controls="sidebar">
-              <img src="/assets/clover-icon.png" alt="" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
         <div class="screen-frame" id="screenFrame">
           <div class="stream-grid" id="streamGrid" aria-live="polite"></div>
           <div class="empty-state" id="emptyState">
             <div class="empty-icon" aria-hidden="true">▣</div>
             <h2>Escolha uma tela para transmitir</h2>
             <p>As transmissoes da sala aparecem aqui em telas separadas.</p>
-            <button class="primary-button" id="startShareHero" type="button">
-              <span aria-hidden="true">▶</span>
-              Iniciar transmissão
-            </button>
+            <div class="empty-actions">
+              <button class="primary-button" id="startShareHero" type="button">
+                <span aria-hidden="true">▶</span>
+                Iniciar transmissão
+              </button>
+              <button class="secondary-button camera-start" id="startCameraHero" type="button" hidden>
+                <span aria-hidden="true">●</span>
+                Ligar câmera
+              </button>
+            </div>
           </div>
           <div class="live-badge" id="liveBadge" hidden>
             <span class="record-dot"></span>
@@ -44,10 +34,6 @@
         </div>
 
         <footer class="control-bar" aria-label="Controles da chamada">
-          <button class="control-button" id="toggleMic" type="button" aria-pressed="true" title="Microfone">
-            <span aria-hidden="true">🎙</span>
-            <small>Mic</small>
-          </button>
           <button class="control-button" id="toggleCamera" type="button" aria-pressed="false" title="Camera">
             <span aria-hidden="true">◉</span>
             <small>Cam</small>
@@ -64,6 +50,11 @@
       </section>
 
       <aside class="room-info" aria-label="Informacoes da sala">
+        <div class="room-info-menu">
+          <button class="clover-button" id="drawerToggle" type="button" title="Abrir painel da sala" aria-label="Abrir painel da sala" aria-expanded="false" aria-controls="sidebar">
+            <img src="/assets/clover-icon.png" alt="" aria-hidden="true" />
+          </button>
+        </div>
         <section class="panel compact">
           <div class="panel-heading">
             <h2>Participantes</h2>
@@ -100,6 +91,17 @@
             <input id="tabAudio" type="checkbox" checked />
           </label>
           <p class="room-meta">Para evitar audio do Discord, compartilhe uma aba e nao a tela inteira.</p>
+        </section>
+
+        <section class="panel compact room-details">
+          <div class="panel-heading">
+            <h2>StreamRoom</h2>
+            <span class="status-inline" id="connectionStatus"><span class="dot"></span>Pronto</span>
+          </div>
+          <dl class="room-details-list">
+            <div><dt>Sala</dt><dd id="displayRoomName">Carregando</dd></div>
+            <div><dt>Dono</dt><dd id="roomOwner">Carregando</dd></div>
+          </dl>
         </section>
       </aside>
 
@@ -189,6 +191,22 @@
           </label>
         </div>
         <button class="primary-button" id="savePhotoEdit" type="button">Usar foto</button>
+      </div>
+    </div>
+
+    <div class="camera-dialog" id="cameraDialog" hidden role="dialog" aria-modal="true" aria-labelledby="cameraDialogTitle">
+      <div class="camera-dialog-card">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Dispositivo de video</p>
+            <h2 id="cameraDialogTitle">Escolher câmera</h2>
+          </div>
+          <button class="icon-button" id="cancelCameraSetup" type="button" title="Cancelar" aria-label="Cancelar configuração">✕</button>
+        </div>
+        <video id="cameraPreview" autoplay muted playsinline></video>
+        <label class="camera-select-label" for="cameraSelect">Câmera</label>
+        <select id="cameraSelect"></select>
+        <button class="primary-button" id="confirmCameraSetup" type="button">Usar esta câmera</button>
       </div>
     </div>
 

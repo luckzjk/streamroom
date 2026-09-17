@@ -55,7 +55,7 @@ button {
 
 .stage {
   display: grid;
-  grid-template-rows: auto minmax(360px, 1fr) auto;
+  grid-template-rows: minmax(360px, 1fr) auto;
   gap: 16px;
 }
 
@@ -138,10 +138,6 @@ h1 {
 }
 
 .clover-button {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 16;
   display: grid;
   place-items: center;
   width: 50px;
@@ -153,6 +149,13 @@ h1 {
   box-shadow:
     inset 0 0 0 1px rgba(57, 217, 138, 0.34),
     0 12px 34px rgba(0, 0, 0, 0.42);
+}
+
+.room-info-menu {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 56px;
+  padding-right: 2px;
 }
 
 .clover-button img {
@@ -400,6 +403,24 @@ h1 {
   font-weight: 800;
 }
 
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.empty-actions .secondary-button {
+  width: auto;
+  min-height: 46px;
+  margin: 0;
+  padding: 0 18px;
+}
+
+.camera-start[hidden] {
+  display: none;
+}
+
 .secondary-button {
   width: 100%;
   min-height: 42px;
@@ -430,7 +451,7 @@ h1 {
 
 .control-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  grid-template-columns: repeat(3, minmax(58px, 1fr));
   gap: 10px;
   padding: 12px;
   border-radius: 8px;
@@ -476,6 +497,40 @@ h1 {
   display: grid;
   grid-auto-rows: max-content;
   gap: 14px;
+}
+
+.status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.room-details-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.room-details-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+  border-top: 1px solid var(--line);
+}
+
+.room-details-list dt {
+  color: var(--muted);
+}
+
+.room-details-list dd {
+  overflow: hidden;
+  margin: 0;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
 }
 
 .drawer-backdrop {
@@ -762,7 +817,8 @@ input[type="checkbox"] {
   transform: translateY(0);
 }
 
-.photo-editor {
+.photo-editor,
+.camera-dialog {
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -772,17 +828,53 @@ input[type="checkbox"] {
   background: rgba(0, 0, 0, 0.62);
 }
 
-.photo-editor[hidden] {
+.photo-editor[hidden],
+.camera-dialog[hidden] {
   display: none;
 }
 
-.photo-editor-card {
+.photo-editor-card,
+.camera-dialog-card {
   width: min(420px, 100%);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
   background: rgba(4, 10, 8, 0.98);
   box-shadow: var(--shadow);
+}
+
+.camera-dialog-card {
+  display: grid;
+  gap: 14px;
+}
+
+.camera-dialog-card .panel-heading {
+  margin-bottom: 0;
+}
+
+.camera-dialog-card video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+  object-fit: cover;
+}
+
+.camera-select-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.camera-dialog-card select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .crop-area {
@@ -830,7 +922,7 @@ input[type="checkbox"] {
   }
 
   .stage {
-    grid-template-rows: auto minmax(360px, 58vh) auto;
+    grid-template-rows: minmax(360px, 58vh) auto;
   }
 
   .room-info {
@@ -844,17 +936,8 @@ input[type="checkbox"] {
     padding: 10px;
   }
 
-  .topbar {
-    align-items: center;
-    min-height: auto;
-  }
-
-  .status-pill {
-    display: none;
-  }
-
   .stage {
-    grid-template-rows: auto minmax(280px, 48vh) auto;
+    grid-template-rows: minmax(280px, 48vh) auto;
   }
 
   .screen-frame {
@@ -887,7 +970,7 @@ input[type="checkbox"] {
     position: sticky;
     bottom: 10px;
     z-index: 5;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 6px;
     padding: 8px;
   }
@@ -903,8 +986,6 @@ input[type="checkbox"] {
   .clover-button {
     width: 46px;
     height: 46px;
-    top: 12px;
-    right: 12px;
   }
 
   .room-info {

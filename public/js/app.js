@@ -4,8 +4,8 @@ const emptyState = document.querySelector("#emptyState");
 const liveBadge = document.querySelector("#liveBadge");
 const connectionStatus = document.querySelector("#connectionStatus");
 const startShareHero = document.querySelector("#startShareHero");
+const startCameraHero = document.querySelector("#startCameraHero");
 const toggleShare = document.querySelector("#toggleShare");
-const toggleMic = document.querySelector("#toggleMic");
 const toggleCamera = document.querySelector("#toggleCamera");
 const leaveButton = document.querySelector("#leaveButton");
 const drawerToggle = document.querySelector("#drawerToggle");
@@ -34,6 +34,13 @@ const roomMeta = document.querySelector("#roomMeta");
 const participantCount = document.querySelector("#participantCount");
 const participantsList = document.querySelector("#participantsList");
 const qualityLabel = document.querySelector("#qualityLabel");
+const displayRoomName = document.querySelector("#displayRoomName");
+const roomOwner = document.querySelector("#roomOwner");
+const cameraDialog = document.querySelector("#cameraDialog");
+const cameraPreview = document.querySelector("#cameraPreview");
+const cameraSelect = document.querySelector("#cameraSelect");
+const confirmCameraSetup = document.querySelector("#confirmCameraSetup");
+const cancelCameraSetup = document.querySelector("#cancelCameraSetup");
 const toast = document.querySelector("#toast");
 
 const roomId = getRoomId();
@@ -44,14 +51,20 @@ const participants = new Map([[peerId, localProfile]]);
 const pendingCandidates = new Map();
 const streamCards = new Map();
 const localSenders = new Map();
+const remoteStreamKinds = new Map();
 const roomState = {
   id: roomId,
   name: `Sala ${roomId.replace("sala-", "")}`,
   limit: 8,
   count: 1,
+  ownerId: null,
+  ownerName: "Aguardando",
 };
 
 let screenStream = null;
+let cameraStream = null;
+let cameraSetupStream = null;
+let selectedCameraId = "";
 let eventSource = null;
 let toastTimer = 0;
 let focusedStreamId = null;
@@ -115,11 +128,12 @@ function showToast(message) {
 }
 
 function setRoomUi() {
-  document.querySelector(".eyebrow").textContent = roomState.name;
   roomCode.textContent = roomId;
   roomLink.value = getInviteLink();
   roomMeta.textContent = `${roomState.count}/${roomState.limit} pessoas`;
   newRoomName.value = roomState.name;
+  displayRoomName.textContent = roomState.name;
+  roomOwner.textContent = roomState.ownerName || "Aguardando";
 }
 
 function setProfileUi() {
@@ -218,8 +232,9 @@ function setVideoState(isLive, mode = "ready") {
   const hasStreams = streamCards.size > 0;
   screenFrame.classList.toggle("is-live", hasStreams);
   emptyState.hidden = hasStreams;
-  liveBadge.hidden = !screenStream;
-  liveBadge.style.display = screenStream ? "inline-flex" : "none";
+  const isBroadcasting = Boolean(screenStream || cameraStream);
+  liveBadge.hidden = !isBroadcasting;
+  liveBadge.style.display = isBroadcasting ? "inline-flex" : "none";
   toggleShare.setAttribute("aria-pressed", String(Boolean(screenStream)));
 
   if (mode === "broadcast") {
@@ -239,6 +254,10 @@ function updateParticipants() {
   participantCount.textContent = String(participants.size);
   roomState.count = participants.size;
   roomMeta.textContent = `${roomState.count}/${roomState.limit} pessoas`;
+  if (roomState.ownerId && participants.has(roomState.ownerId)) {
+    roomState.ownerName = participants.get(roomState.ownerId).name;
+    roomOwner.textContent = roomState.ownerName;
+  }
   participantsList.innerHTML = "";
 
   [...participants.entries()].forEach(([id, profile]) => {
@@ -380,7 +399,7 @@ function connectSignaling() {
   eventSource = new EventSource(`/events?${params}`);
 
   eventSource.onopen = () => {
-    setVideoState(Boolean(screenStream || streamCards.size));
+    setVideoState(Boolean(screenStream || cameraStream || streamCards.size));
     sendSignal({ type: "viewer-ready", to: "all" });
     sendSignal({ type: "profile-updated", to: "all", profile: localProfile });
   };
@@ -424,7 +443,8 @@ async function handleSignal(message) {
   }
 
   if (type === "peer-joined") {
-    if (screenStream) {
+    if (screenStream || cameraStream) {
+      await announceLocalStreams(from);
       await createOffer(from);
     }
     return;
@@ -432,7 +452,7 @@ async function handleSignal(message) {
 
   if (type === "peer-left") {
     closePeer(from);
-    removeStreamCard(from);
+    removeStreamCardsByOwner(from);
     participants.delete(from);
     updateParticipants();
     return;
@@ -446,17 +466,23 @@ async function handleSignal(message) {
   }
 
   if (type === "stream-stopped") {
-    removeStreamCard(from);
+    removeStreamCard(getStreamCardId(from, payload?.kind || "screen"));
     setVideoState(streamCards.size > 0);
     return;
   }
 
-  if (type === "viewer-ready" && screenStream) {
+  if (type === "stream-announced") {
+    remoteStreamKinds.set(`${from}:${payload.streamId}`, payload.kind);
+    return;
+  }
+
+  if (type === "viewer-ready" && (screenStream || cameraStream)) {
+    await announceLocalStreams(from);
     await createOffer(from);
     return;
   }
 
-  if (type === "broadcaster-ready" && !screenStream) {
+  if (type === "broadcaster-ready" && !screenStream && !cameraStream) {
     await sendSignal({ type: "viewer-ready", to: from });
     return;
   }
@@ -500,7 +526,8 @@ function createPeerConnection(remotePeerId) {
 
   peer.ontrack = (event) => {
     const [stream] = event.streams;
-    addStreamCard(remotePeerId, stream, false);
+    const kind = remoteStreamKinds.get(`${remotePeerId}:${stream.id}`) || "screen";
+    addStreamCard(remotePeerId, stream, false, kind);
     setVideoState(true, "watching");
   };
 
@@ -550,7 +577,7 @@ async function receiveOffer(remotePeerId, offer) {
   await peer.setRemoteDescription(offer);
   await flushPendingCandidates(remotePeerId, peer);
 
-  if (screenStream) {
+  if (screenStream || cameraStream) {
     addLocalTracksToPeer(remotePeerId, peer);
   }
 
@@ -605,21 +632,40 @@ function closePeer(remotePeerId) {
 }
 
 function addLocalTracksToPeer(remotePeerId, peer) {
-  if (!screenStream) return;
-
   const senders = localSenders.get(remotePeerId) || [];
 
-  screenStream.getTracks().forEach((track) => {
-    if (!senders.some((sender) => sender.track?.id === track.id)) {
-      senders.push(peer.addTrack(track, screenStream));
-    }
+  [["screen", screenStream], ["camera", cameraStream]].forEach(([kind, stream]) => {
+    stream?.getTracks().forEach((track) => {
+      if (!senders.some((sender) => sender.track?.id === track.id)) {
+        const sender = peer.addTrack(track, stream);
+        sender.__streamKind = kind;
+        senders.push(sender);
+      }
+    });
   });
 
   localSenders.set(remotePeerId, senders);
 }
 
-function addStreamCard(ownerId, stream, isLocal) {
-  const existing = streamCards.get(ownerId);
+async function announceLocalStreams(to = "all") {
+  const announcements = [["screen", screenStream], ["camera", cameraStream]]
+    .filter(([, stream]) => stream)
+    .map(([kind, stream]) => sendSignal({
+      type: "stream-announced",
+      to,
+      payload: { kind, streamId: stream.id },
+    }));
+
+  await Promise.all(announcements);
+}
+
+function getStreamCardId(ownerId, kind) {
+  return `${ownerId}:${kind}`;
+}
+
+function addStreamCard(ownerId, stream, isLocal, kind = "screen") {
+  const cardId = getStreamCardId(ownerId, kind);
+  const existing = streamCards.get(cardId);
   const profile = participants.get(ownerId) || localProfile;
 
   if (existing) {
@@ -631,7 +677,7 @@ function addStreamCard(ownerId, stream, isLocal) {
 
   const card = document.createElement("article");
   card.className = "stream-card";
-  card.dataset.streamId = ownerId;
+  card.dataset.streamId = cardId;
   card.innerHTML = `
     <video autoplay playsinline></video>
     <div class="stream-toolbar">
@@ -658,12 +704,13 @@ function addStreamCard(ownerId, stream, isLocal) {
   video.srcObject = stream;
   video.muted = Number(slider.value) === 0;
   video.volume = Number(slider.value) / 100;
-  title.textContent = isLocal ? `${profile.name} (voce)` : profile.name;
+  const kindLabel = kind === "camera" ? "Camera" : "Tela";
+  title.textContent = `${isLocal ? `${profile.name} (voce)` : profile.name} · ${kindLabel}`;
 
   stream.getTracks().forEach((track) => {
     track.addEventListener("ended", () => {
       if (!stream.getTracks().some((item) => item.readyState === "live")) {
-        removeStreamCard(ownerId);
+        removeStreamCard(cardId);
         setVideoState(streamCards.size > 0);
       }
     });
@@ -683,14 +730,14 @@ function addStreamCard(ownerId, stream, isLocal) {
     speakerButton.setAttribute("aria-expanded", String(isOpen));
   });
 
-  focusButton.addEventListener("click", () => toggleFocusStream(ownerId));
+  focusButton.addEventListener("click", () => toggleFocusStream(cardId));
   backButton.addEventListener("click", clearFocusedStream);
-  card.addEventListener("dblclick", () => toggleFocusStream(ownerId));
+  card.addEventListener("dblclick", () => toggleFocusStream(cardId));
 
   streamGrid.append(card);
-  streamCards.set(ownerId, { card, video, stream, title });
+  streamCards.set(cardId, { card, video, stream, title, ownerId, kind });
   setVideoState(true, isLocal ? "broadcast" : "watching");
-  return streamCards.get(ownerId);
+  return streamCards.get(cardId);
 }
 
 function updateFocusButtons() {
@@ -705,12 +752,18 @@ function updateFocusButtons() {
 }
 
 function updateStreamTitle(ownerId) {
-  const item = streamCards.get(ownerId);
   const profile = participants.get(ownerId) || localProfile;
+  streamCards.forEach((item) => {
+    if (item.ownerId !== ownerId) return;
+    const kindLabel = item.kind === "camera" ? "Camera" : "Tela";
+    item.title.textContent = `${ownerId === peerId ? `${profile.name} (voce)` : profile.name} · ${kindLabel}`;
+  });
+}
 
-  if (item) {
-    item.title.textContent = ownerId === peerId ? `${profile.name} (voce)` : profile.name;
-  }
+function removeStreamCardsByOwner(ownerId) {
+  [...streamCards.entries()]
+    .filter(([, item]) => item.ownerId === ownerId)
+    .forEach(([cardId]) => removeStreamCard(cardId));
 }
 
 function removeStreamCard(ownerId) {
@@ -778,13 +831,14 @@ async function startScreenShare() {
   try {
     screenStream = await captureDisplayMedia(preset, captureAudio);
 
-    addStreamCard(peerId, screenStream, true);
+    addStreamCard(peerId, screenStream, true, "screen");
     setVideoState(true, "broadcast");
     showToast("Transmissao iniciada. Para evitar Discord, prefira compartilhar uma aba.");
 
     const [track] = screenStream.getVideoTracks();
     track.addEventListener("ended", stopScreenShare, { once: true });
 
+    await announceLocalStreams();
     await sendSignal({ type: "broadcaster-ready", to: "all" });
     await Promise.all([...participants.keys()].filter((id) => id !== peerId).map((id) => createOffer(id)));
   } catch (error) {
@@ -807,13 +861,91 @@ async function stopScreenShare() {
   localSenders.forEach((senders, remotePeerId) => {
     const peer = peers.get(remotePeerId);
     if (!peer) return;
-    senders.forEach((sender) => peer.removeTrack(sender));
+    senders.filter((sender) => sender.__streamKind === "screen").forEach((sender) => peer.removeTrack(sender));
+    localSenders.set(remotePeerId, senders.filter((sender) => sender.__streamKind !== "screen"));
   });
-  localSenders.clear();
-  removeStreamCard(peerId);
+  removeStreamCard(getStreamCardId(peerId, "screen"));
   setVideoState(streamCards.size > 0);
-  await sendSignal({ type: "stream-stopped", to: "all" });
+  await sendSignal({ type: "stream-stopped", to: "all", payload: { kind: "screen" } });
   showToast("Transmissao encerrada.");
+}
+
+function stopCameraSetup() {
+  cameraSetupStream?.getTracks().forEach((track) => track.stop());
+  cameraSetupStream = null;
+  cameraPreview.srcObject = null;
+  cameraDialog.hidden = true;
+}
+
+async function previewCamera(deviceId = "") {
+  cameraSetupStream?.getTracks().forEach((track) => track.stop());
+  cameraSetupStream = await navigator.mediaDevices.getUserMedia({
+    video: deviceId ? { deviceId: { exact: deviceId } } : true,
+    audio: false,
+  });
+  cameraPreview.srcObject = cameraSetupStream;
+}
+
+async function openCameraSetup() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("Este navegador nao liberou o acesso a camera.");
+    return;
+  }
+
+  try {
+    await previewCamera(selectedCameraId);
+    const devices = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput");
+    cameraSelect.innerHTML = "";
+    devices.forEach((device, index) => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = device.label || `Camera ${index + 1}`;
+      option.selected = device.deviceId === cameraSetupStream.getVideoTracks()[0]?.getSettings().deviceId;
+      cameraSelect.append(option);
+    });
+    cameraDialog.hidden = false;
+  } catch (error) {
+    toggleCamera.setAttribute("aria-pressed", "false");
+    showToast(error.name === "NotAllowedError" ? "Permissao da camera negada." : "Nao foi possivel abrir a camera.");
+  }
+}
+
+async function startCameraShare() {
+  if (cameraStream) {
+    await stopCameraShare();
+    return;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true,
+      audio: false,
+    });
+    addStreamCard(peerId, cameraStream, true, "camera");
+    startCameraHero.innerHTML = '<span aria-hidden="true">■</span> Desligar câmera';
+    await announceLocalStreams();
+    await sendSignal({ type: "broadcaster-ready", to: "all" });
+    await Promise.all([...participants.keys()].filter((id) => id !== peerId).map((id) => createOffer(id)));
+    cameraStream.getVideoTracks()[0]?.addEventListener("ended", stopCameraShare, { once: true });
+    showToast("Camera ligada.");
+  } catch (error) {
+    showToast(error.name === "NotAllowedError" ? "Permissao da camera negada." : "Nao foi possivel ligar a camera.");
+  }
+}
+
+async function stopCameraShare() {
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  localSenders.forEach((senders, remotePeerId) => {
+    const peer = peers.get(remotePeerId);
+    if (!peer) return;
+    senders.filter((sender) => sender.__streamKind === "camera").forEach((sender) => peer.removeTrack(sender));
+    localSenders.set(remotePeerId, senders.filter((sender) => sender.__streamKind !== "camera"));
+  });
+  removeStreamCard(getStreamCardId(peerId, "camera"));
+  startCameraHero.innerHTML = '<span aria-hidden="true">●</span> Ligar câmera';
+  setVideoState(streamCards.size > 0);
+  await sendSignal({ type: "stream-stopped", to: "all", payload: { kind: "camera" } });
 }
 
 function togglePressed(button) {
@@ -832,18 +964,46 @@ toggleShare.addEventListener("click", () => {
   }
 });
 
-toggleMic.addEventListener("click", () => {
-  const enabled = togglePressed(toggleMic);
-  showToast(enabled ? "Microfone ligado." : "Microfone mutado.");
+toggleCamera.addEventListener("click", async () => {
+  const enabled = togglePressed(toggleCamera);
+
+  if (enabled) {
+    await openCameraSetup();
+    return;
+  }
+
+  stopCameraSetup();
+  startCameraHero.hidden = true;
+  await stopCameraShare();
+  showToast("Camera desativada.");
 });
 
-toggleCamera.addEventListener("click", () => {
-  const enabled = togglePressed(toggleCamera);
-  showToast(enabled ? "Camera ligada." : "Camera desligada.");
+cameraSelect.addEventListener("change", async () => {
+  try {
+    await previewCamera(cameraSelect.value);
+  } catch {
+    showToast("Nao foi possivel trocar a camera.");
+  }
 });
+
+confirmCameraSetup.addEventListener("click", () => {
+  selectedCameraId = cameraSelect.value;
+  stopCameraSetup();
+  toggleCamera.setAttribute("aria-pressed", "true");
+  startCameraHero.hidden = false;
+  showToast("Camera configurada. Use Ligar camera para transmitir.");
+});
+
+cancelCameraSetup.addEventListener("click", () => {
+  stopCameraSetup();
+  toggleCamera.setAttribute("aria-pressed", "false");
+});
+
+startCameraHero.addEventListener("click", startCameraShare);
 
 leaveButton.addEventListener("click", () => {
   stopScreenShare();
+  stopCameraShare();
   eventSource?.close();
   setStatus("Desconectado");
 });
@@ -854,6 +1014,12 @@ drawerBackdrop.addEventListener("click", () => setDrawerOpen(false));
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (!cameraDialog.hidden) {
+      stopCameraSetup();
+      toggleCamera.setAttribute("aria-pressed", "false");
+      return;
+    }
+
     if (!photoEditor.hidden) {
       closePhotoEditor();
       return;
@@ -890,6 +1056,7 @@ createRoomForm.addEventListener("submit", async (event) => {
     body: JSON.stringify({
       name: newRoomName.value,
       limit: newRoomLimit.value,
+      ownerName: localProfile.name,
     }),
   });
   const room = await response.json();
@@ -965,6 +1132,8 @@ window.addEventListener("beforeunload", () => {
   eventSource?.close();
   peers.forEach((peer) => peer.close());
   screenStream?.getTracks().forEach((track) => track.stop());
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraSetupStream?.getTracks().forEach((track) => track.stop());
 });
 
 setProfileUi();

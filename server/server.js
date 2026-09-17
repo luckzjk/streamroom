@@ -57,6 +57,8 @@ function getRoom(roomId, options = {}) {
       id: roomId,
       name: normalizeRoomName(options.name, roomId),
       limit: normalizeRoomLimit(options.limit),
+      ownerId: null,
+      ownerName: String(options.ownerName || "").trim().slice(0, 32),
       clients: new Map(),
     });
   }
@@ -161,10 +163,11 @@ const server = http.createServer(async (request, response) => {
       const room = getRoom(roomId, {
         name: data.name,
         limit: data.limit,
+        ownerName: data.ownerName,
       });
 
       response.writeHead(201, { "Content-Type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ id: room.id, name: room.name, limit: room.limit }));
+      response.end(JSON.stringify({ id: room.id, name: room.name, limit: room.limit, ownerId: room.ownerId, ownerName: room.ownerName }));
     } catch (error) {
       response.writeHead(400);
       response.end(error.message);
@@ -188,6 +191,8 @@ const server = http.createServer(async (request, response) => {
       name: room.name,
       limit: room.limit,
       count: room.clients.size,
+      ownerId: room.ownerId,
+      ownerName: room.ownerName,
     }));
     return;
   }
@@ -216,6 +221,11 @@ const server = http.createServer(async (request, response) => {
 
     const room = getRoom(roomId);
 
+    if (!room.ownerId) {
+      room.ownerId = peerId;
+      room.ownerName = room.ownerName || profile.name;
+    }
+
     if (!room.clients.has(peerId) && room.clients.size >= room.limit) {
       response.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -231,7 +241,7 @@ const server = http.createServer(async (request, response) => {
 
     sendEvent(response, {
       type: "connected",
-      room: { id: room.id, name: room.name, limit: room.limit },
+      room: { id: room.id, name: room.name, limit: room.limit, ownerId: room.ownerId, ownerName: room.ownerName },
       peers: getPeerList(room).filter((peer) => peer.id !== peerId),
     });
     broadcast(roomId, { type: "peer-joined", from: peerId, profile }, peerId);
@@ -265,12 +275,17 @@ const server = http.createServer(async (request, response) => {
       }
 
       if (type === "profile-updated" && profile) {
-        const client = rooms.get(room)?.clients.get(from);
+        const currentRoom = rooms.get(room);
+        const client = currentRoom?.clients.get(from);
         if (client) {
           client.profile = {
             name: String(profile.name || "Convidado").slice(0, 32),
             photo: String(profile.photo || "").slice(0, 180000),
           };
+
+          if (currentRoom.ownerId === from) {
+            currentRoom.ownerName = client.profile.name;
+          }
         }
       }
 
